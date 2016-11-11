@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Linq;
 using System.Collections.Generic;
@@ -26,6 +26,10 @@ namespace TEditXNA.Terraria
         private static readonly Dictionary<int, ItemProperty> _itemLookup = new Dictionary<int, ItemProperty>();
         private static readonly Dictionary<int, string> _tallynames = new Dictionary<int, string>();
         private static readonly Dictionary<string, string> _frameNames = new Dictionary<string, string>();
+        private static readonly Dictionary<int, string> _armorHeadNames = new Dictionary<int, string>();
+        private static readonly Dictionary<int, string> _armorBodyNames = new Dictionary<int, string>();
+        private static readonly Dictionary<int, string> _armorLegsNames = new Dictionary<int, string>();
+        private static readonly Dictionary<int, string> _rackable = new Dictionary<int, string>();
 
         private static readonly ObservableCollection<ItemProperty> _itemProperties = new ObservableCollection<ItemProperty>();
         private static readonly ObservableCollection<ChestProperty> _chestProperties = new ObservableCollection<ChestProperty>();
@@ -176,11 +180,23 @@ namespace TEditXNA.Terraria
                         curFrame.Name = curTile.Name;
 
                     curTile.Frames.Add(curFrame);
+                    string spriteName = null;
+                    if (curFrame.Name == curTile.Name)
+                    {
+                        if (!string.IsNullOrWhiteSpace(curFrame.Variety))
+                            spriteName += curFrame.Variety;
+                    }
+                    else
+                    {
+                        spriteName += curFrame.Name;
+                        if (!string.IsNullOrWhiteSpace(curFrame.Variety))
+                            spriteName += " - " + curFrame.Variety;
+                    }
                     Sprites.Add(new Sprite
                                     {
                                         Anchor = curFrame.Anchor,
                                         IsPreviewTexture = false,
-                                        Name = curFrame.Name + ", " + curFrame.Variety,
+                                        Name = spriteName,
                                         Origin = curFrame.UV,
                                         Size = frameSize,
                                         Tile = (ushort)curTile.Id, /* SBlogic */
@@ -217,16 +233,12 @@ namespace TEditXNA.Terraria
                     curFrame.UV = new Vector2Short(0, 0);
                     //curFrame.Anchor = InLineEnumTryParse<FrameAnchor>((string)xElement.Attribute("Anchor"));
 
-                    // Assign a default name if none existed
-                    if (string.IsNullOrWhiteSpace(curFrame.Name))
-                        curFrame.Name = curTile.Name;
-
                     curTile.Frames.Add(curFrame);
                     Sprites.Add(new Sprite
                                     {
                                         Anchor = curFrame.Anchor,
                                         IsPreviewTexture = false,
-                                        Name = curFrame.Name + ", " + curFrame.Variety,
+                                        Name = null,
                                         Origin = curFrame.UV,
                                         Size = curTile.FrameSize,
                                         Tile = (ushort)curTile.Id,
@@ -248,7 +260,6 @@ namespace TEditXNA.Terraria
                 curWall.Color = ColorFromString((string)xElement.Attribute("Color"));
                 curWall.Name = (string)xElement.Attribute("Name");
                 curWall.Id = (int?)xElement.Attribute("Id") ?? -1;
-                curWall.IsHouse = (bool?)xElement.Attribute("IsHouse") ?? false;
                 WallProperties.Add(curWall);
             }
 
@@ -257,11 +268,24 @@ namespace TEditXNA.Terraria
                 var curItem = new ItemProperty();
                 curItem.Id = (int?)xElement.Attribute("Id") ?? -1;
                 curItem.Name = (string)xElement.Attribute("Name");
+                curItem.Scale = (float?)xElement.Attribute("Scale") ?? 1f;
                 ItemProperties.Add(curItem);
                 _itemLookup.Add(curItem.Id, curItem);
                 int tally = (int?)xElement.Attribute("Tally") ?? 0;
                 if (tally > 0)
                     _tallynames.Add(tally, curItem.Name);
+                int head = (int?)xElement.Attribute("Head") ?? -1;
+                if (head >= 0)
+                    _armorHeadNames.Add(head, curItem.Name);
+                int body = (int?)xElement.Attribute("Body") ?? -1;
+                if (body >= 0)
+                    _armorBodyNames.Add(body, curItem.Name);
+                int legs = (int?)xElement.Attribute("Legs") ?? -1;
+                if (legs >= 0)
+                    _armorLegsNames.Add(legs, curItem.Name);
+                bool rack = (bool?)xElement.Attribute("Rack") ?? false;
+                if (rack)
+                    _rackable.Add(curItem.Id, curItem.Name);
             }
 
             foreach (var xElement in xmlSettings.Elements("Paints").Elements("Paint"))
@@ -427,6 +451,23 @@ namespace TEditXNA.Terraria
         public static Dictionary<int, string> NpcNames
         {
             get { return _npcNames; }
+        }
+
+        public static Dictionary<int, string> ArmorHeadNames
+        {
+            get { return _armorHeadNames; }
+        }
+        public static Dictionary<int, string> ArmorBodyNames
+        {
+            get { return _armorBodyNames; }
+        }
+        public static Dictionary<int, string> ArmorLegsNames
+        {
+            get { return _armorLegsNames; }
+        }
+        public static Dictionary<int, string> Rackable
+        {
+            get { return _rackable; }
         }
 
         public static Dictionary<int, int> NpcFrames

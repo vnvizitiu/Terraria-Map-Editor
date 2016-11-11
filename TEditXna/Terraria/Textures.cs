@@ -14,6 +14,7 @@ namespace TEditXNA.Terraria
         private readonly GraphicsDevice _gdDevice;
         private readonly Dictionary<int, Texture2D> _tiles = new Dictionary<int, Texture2D>();
         private readonly Dictionary<int, Texture2D> _backgrounds = new Dictionary<int, Texture2D>();
+        private readonly Dictionary<int, Texture2D> _underworld = new Dictionary<int, Texture2D>();
         private readonly Dictionary<int, Texture2D> _walls = new Dictionary<int, Texture2D>();
         private readonly Dictionary<int, Texture2D> _trees = new Dictionary<int, Texture2D>();
         private readonly Dictionary<int, Texture2D> _treeTops = new Dictionary<int, Texture2D>();
@@ -22,8 +23,14 @@ namespace TEditXNA.Terraria
         private readonly Dictionary<int, Texture2D> _npcs = new Dictionary<int, Texture2D>();
         private readonly Dictionary<int, Texture2D> _liquids = new Dictionary<int, Texture2D>(); /* Heathtech */
         private readonly Dictionary<string, Texture2D> _misc = new Dictionary<string, Texture2D>(); /* Heathtech */
+        private readonly Dictionary<int, Texture2D> _armorHead = new Dictionary<int, Texture2D>();
+        private readonly Dictionary<int, Texture2D> _armorBody = new Dictionary<int, Texture2D>();
+        private readonly Dictionary<int, Texture2D> _armorFemale = new Dictionary<int, Texture2D>();
+        private readonly Dictionary<int, Texture2D> _armorLegs = new Dictionary<int, Texture2D>();
+        private readonly Dictionary<int, Texture2D> _item = new Dictionary<int, Texture2D>();
 
         public Dictionary<int, Texture2D> Tiles { get { return _tiles; } }
+        public Dictionary<int, Texture2D> Underworld { get { return _underworld; } }
         public Dictionary<int, Texture2D> Backgrounds { get { return _backgrounds; } }
         public Dictionary<int, Texture2D> Walls { get { return _walls; } }
         public Dictionary<int, Texture2D> Trees { get { return _trees; } }
@@ -33,6 +40,11 @@ namespace TEditXNA.Terraria
         public Dictionary<int, Texture2D> Npcs { get { return _npcs; } }
         public Dictionary<int, Texture2D> Liquids { get { return _liquids; } } /* Heathtech */
         public Dictionary<string, Texture2D> Misc { get { return _misc; } } /* Heathtech */
+        public Dictionary<int, Texture2D> ArmorHead { get { return _armorHead; } }
+        public Dictionary<int, Texture2D> ArmorBody { get { return _armorBody; } }
+        public Dictionary<int, Texture2D> ArmorFemale { get { return _armorFemale; } }
+        public Dictionary<int, Texture2D> ArmorLegs { get { return _armorLegs; } }
+        public Dictionary<int, Texture2D> Item { get { return _item; } }
         public Texture2D Actuator { get { return _actuator ?? (_actuator = (Texture2D)GetMisc("Actuator")); } }
 
         readonly ContentManager _cm;
@@ -73,6 +85,15 @@ namespace TEditXNA.Terraria
                 }
             }
             return Tiles[num];
+        }
+        public Texture2D GetUnderworld(int num)
+        {
+            if (!Underworld.ContainsKey(num))
+            {
+                string name = String.Format("Images\\Backgrounds\\Underworld {0}", num);
+                Underworld[num] = LoadTexture(name);
+            }
+            return Underworld[num];
         }
         public Texture2D GetBackground(int num)
         {
@@ -164,6 +185,51 @@ namespace TEditXNA.Terraria
                 Misc[name] = LoadTexture(texName);
             }
             return Misc[name];
+        }
+        public Texture GetArmorHead(int num)
+        {
+            if (!ArmorHead.ContainsKey(num))
+            {
+                string name = String.Format("Images\\Armor_Head_{0}", num);
+                ArmorHead[num] = LoadTexture(name);
+            }
+            return ArmorHead[num];
+        }
+        public Texture GetArmorBody(int num)
+        {
+            if (!ArmorBody.ContainsKey(num))
+            {
+                string name = String.Format("Images\\Armor_Body_{0}", num);
+                ArmorBody[num] = LoadTexture(name);
+            }
+            return ArmorBody[num];
+        }
+        public Texture GetArmorFemale(int num)
+        {
+            if (!ArmorFemale.ContainsKey(num))
+            {
+                string name = String.Format("Images\\Female_Body_{0}", num);
+                ArmorFemale[num] = LoadTexture(name);
+            }
+            return ArmorFemale[num];
+        }
+        public Texture GetArmorLegs(int num)
+        {
+            if (!ArmorLegs.ContainsKey(num))
+            {
+                string name = String.Format("Images\\Armor_Legs_{0}", num);
+                ArmorLegs[num] = LoadTexture(name);
+            }
+            return ArmorLegs[num];
+        }
+        public Texture2D GetItem(int num)
+        {
+            if (!Item.ContainsKey(num))
+            {
+                string name = String.Format("Images\\Item_{0}", num);
+                Item[num] = LoadTexture(name);
+            }
+            return Item[num];
         }
 
         private static Color ColorKey = Color.FromNonPremultiplied(247, 119, 249, 255);

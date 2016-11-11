@@ -27,6 +27,8 @@ namespace TEditXNA.Terraria
         private readonly ObservableCollection<NPC> _mobs = new ObservableCollection<NPC>();
         private readonly ObservableCollection<Sign> _signs = new ObservableCollection<Sign>();
         private readonly ObservableCollection<TileEntity> _tileEntities = new ObservableCollection<TileEntity>();
+        private readonly ObservableCollection<int> _partyingNPCs = new ObservableCollection<int>();        
+        private readonly ObservableCollection<PressurePlate> _pressurePlates = new ObservableCollection<PressurePlate>();
 
         // [SBLogic] These variables are used internally for composing background layers, not currently needed here:
         // public int[] CorruptBG = new int[3];
@@ -94,7 +96,6 @@ namespace TEditXNA.Terraria
         private bool _downedMoonlord;
         private bool _downedHalloweenKing;
         private bool _downedHalloweenTree;
-        private bool c;
         private bool _downedChristmasQueen;
         private bool _downedSanta;
         private bool _downedChristmasTree;
@@ -172,6 +173,27 @@ namespace TEditXNA.Terraria
 
         private uint _fileRevision;
         private bool _isFavorite;
+        private bool _partyManual;
+        private bool _partyGenuine;
+        private int _partyCooldown;
+        
+        public bool PartyManual
+        {
+            get { return _partyManual; }
+            set { Set("PartyManual", ref _partyManual, value); }
+        }
+
+        public bool PartyGenuine
+        {
+            get { return _partyGenuine; }
+            set { Set("PartyGenuine", ref _partyGenuine, value); }
+        }
+
+        public int PartyCooldown
+        {
+            get { return _partyCooldown; }
+            set { Set("PartyCooldown", ref _partyCooldown, value); }
+        }  
 
         public int TileEntitiesNumber
         {
@@ -339,6 +361,16 @@ namespace TEditXNA.Terraria
         public ObservableCollection<TileEntity> TileEntities
         {
             get { return _tileEntities; }
+        }
+
+        public ObservableCollection<int> PartyingNPCs
+        {
+            get { return _partyingNPCs; }
+        }
+
+        public ObservableCollection<PressurePlate> PressurePlates
+        {
+            get { return _pressurePlates; }
         }
 
         public byte MoonType

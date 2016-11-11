@@ -17,6 +17,8 @@ namespace TEditXna.Editor.Tools
         private bool _isRightDown;
         private Vector2Int32 _startPoint;
         private Vector2Int32 _endPoint;
+        private Vector2Int32 _leftPoint;
+        private Vector2Int32 _rightPoint;
 
         public BrushTool(WorldViewModel worldViewModel)
             : base(worldViewModel)
@@ -33,7 +35,7 @@ namespace TEditXna.Editor.Tools
                 _startPoint = e.Location;
                 _wvm.CheckTiles = new bool[_wvm.CurrentWorld.TilesWide * _wvm.CurrentWorld.TilesHigh];
             }
-        
+
             _isLeftDown = (e.LeftButton == MouseButtonState.Pressed);
             _isRightDown = (e.RightButton == MouseButtonState.Pressed);
             CheckDirectionandDraw(e.Location);
@@ -61,6 +63,10 @@ namespace TEditXna.Editor.Tools
             bmp.Clear();
             if (_wvm.Brush.Shape == BrushShape.Square || _wvm.Brush.Height <= 1 || _wvm.Brush.Width <= 1)
                 bmp.FillRectangle(0, 0, _wvm.Brush.Width, _wvm.Brush.Height, Color.FromArgb(127, 0, 90, 255));
+            else if (_wvm.Brush.Shape == BrushShape.Left)
+                bmp.DrawLine(0, 0, _wvm.Brush.Width, _wvm.Brush.Height, Color.FromArgb(127, 0, 90, 255));
+            else if (_wvm.Brush.Shape == BrushShape.Right)
+                bmp.DrawLine(0, _wvm.Brush.Height, _wvm.Brush.Width, 0, Color.FromArgb(127, 0, 90, 255));
             else
                 bmp.FillEllipse(0, 0, _wvm.Brush.Width, _wvm.Brush.Height, Color.FromArgb(127, 0, 90, 255));
 
@@ -110,6 +116,10 @@ namespace TEditXna.Editor.Tools
                 {
                     FillRound(point);
                 }
+                else if (_wvm.Brush.Shape == BrushShape.Right || _wvm.Brush.Shape == BrushShape.Left)
+                {
+                    FillSlope(point);
+                }
             }
         }
 
@@ -133,7 +143,7 @@ namespace TEditXna.Editor.Tools
             IEnumerable<Vector2Int32> area = Fill.FillRectangleCentered(point, new Vector2Int32(_wvm.Brush.Width, _wvm.Brush.Height));
             if (_wvm.Brush.IsOutline)
             {
-                
+
                 IEnumerable<Vector2Int32> interrior = Fill.FillRectangleCentered(point,
                                                                                  new Vector2Int32(
                                                                                      _wvm.Brush.Width - _wvm.Brush.Outline * 2,
@@ -207,7 +217,14 @@ namespace TEditXna.Editor.Tools
                         if (_wvm.Selection.IsValid(pixel))
                         {
                             _wvm.UndoManager.SaveTile(pixel);
-                            _wvm.SetPixel(pixel.X, pixel.Y, mode: PaintMode.TileAndWall);
+                            if (_wvm.TilePicker.WallStyleActive)
+                            {
+                                _wvm.TilePicker.WallStyleActive = false;
+                                _wvm.SetPixel(pixel.X, pixel.Y, mode: PaintMode.TileAndWall);
+                                _wvm.TilePicker.WallStyleActive = true;
+                            }
+                            else
+                                _wvm.SetPixel(pixel.X, pixel.Y, mode: PaintMode.TileAndWall);
 
                             /* Heathtech */
                             BlendRules.ResetUVCache(_wvm, pixel.X, pixel.Y, 1, 1);
@@ -224,15 +241,59 @@ namespace TEditXna.Editor.Tools
                 if (_wvm.Selection.IsValid(pixel))
                 {
                     _wvm.UndoManager.SaveTile(pixel);
-                    _wvm.SetPixel(pixel.X, pixel.Y, erase: true);
+                    _wvm.SetPixel(pixel.X, pixel.Y, mode:PaintMode.TileAndWall, erase: true);
 
                     if (_wvm.TilePicker.WallStyleActive)
                     {
-                        _wvm.SetPixel(pixel.X, pixel.Y, mode: PaintMode.TileAndWall);
+                        if (_wvm.TilePicker.TileStyleActive)
+                        {
+                            _wvm.TilePicker.TileStyleActive = false;
+                            _wvm.SetPixel(pixel.X, pixel.Y, mode: PaintMode.TileAndWall);
+                            _wvm.TilePicker.TileStyleActive = true;
+                        }
+                        else
+                            _wvm.SetPixel(pixel.X, pixel.Y, mode: PaintMode.TileAndWall);
                     }
 
                     /* Heathtech */
                     BlendRules.ResetUVCache(_wvm, pixel.X, pixel.Y, 1, 1);
+                }
+            }
+        }
+
+        private void FillSlope(Vector2Int32 point)
+        {
+            if (_wvm.Brush.Shape == BrushShape.Right)
+            {
+                _leftPoint = new Vector2Int32(point.X - _wvm.Brush.Width / 2, point.Y + _wvm.Brush.Height / 2);
+                _rightPoint = new Vector2Int32(point.X + _wvm.Brush.Width / 2,point.Y - _wvm.Brush.Height / 2);
+            }
+            else
+            {
+                _leftPoint = new Vector2Int32(point.X - _wvm.Brush.Width / 2, point.Y - _wvm.Brush.Height / 2);
+                _rightPoint = new Vector2Int32(point.X + _wvm.Brush.Width / 2,point.Y + _wvm.Brush.Height / 2);
+            }
+            IEnumerable<Vector2Int32> area = Shape.DrawLine(_leftPoint, _rightPoint);
+            foreach (Vector2Int32 pixel in area)
+            {
+                bool test1 = _wvm.CurrentWorld.ValidTileLocation(pixel);
+                bool test2 = _wvm.CurrentWorld.ValidTileLocation(pixel.X, pixel.Y);
+                bool test3 = _wvm.CurrentWorld.ValidTileLocation(pixel.X, pixel.Y);
+
+                if (!test1 && !test2 && !test3) continue;
+
+                int index = pixel.X + pixel.Y * _wvm.CurrentWorld.TilesWide;
+                if (!_wvm.CheckTiles[index])
+                {
+                    _wvm.CheckTiles[index] = true;
+                    if (_wvm.Selection.IsValid(pixel))
+                    {
+                        _wvm.UndoManager.SaveTile(pixel);
+                        _wvm.SetPixel(pixel.X, pixel.Y);
+
+                        /* Heathtech */
+                        BlendRules.ResetUVCache(_wvm, pixel.X, pixel.Y, 1, 1);
+                    }
                 }
             }
         }

@@ -16,8 +16,6 @@ namespace TEditXNA.Terraria
         SlopeTopLeft = 0x3,
         SlopeBottomRight = 0x4,
         SlopeBottomLeft = 0x5,
-        Unknown06 = 0x6,
-        Unknown07 = 0x7,
     }
 
     public enum LiquidType : byte
@@ -44,6 +42,7 @@ namespace TEditXNA.Terraria
         Dresser = 88,
         EbonsandBlock = 112,
         PearlsandBlock = 116,
+        CrimsandBlock = 234,
         IceByRod = 127,
         Timer = 144,
         AnnouncementBox = 425
