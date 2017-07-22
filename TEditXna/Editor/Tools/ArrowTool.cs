@@ -3,7 +3,6 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using TEditXNA.Terraria;
 using TEdit.Geometry.Primitives;
-using TEditXna.View.Popups;
 using TEditXna.ViewModel;
 
 namespace TEditXna.Editor.Tools
@@ -58,7 +57,7 @@ namespace TEditXna.Editor.Tools
                 TileEntity frame = _wvm.CurrentWorld.GetTileEntityAtTile(e.Location.X, e.Location.Y);
                 if (frame != null)
                 {
-                    _wvm.SelectedItemFrame = frame.CopyFrame();
+                    _wvm.SelectedItemFrame = frame.Copy();
                     return;
                 }
             }
@@ -82,8 +81,17 @@ namespace TEditXna.Editor.Tools
                 {
                     _wvm.SelectedRackPrefix = 0;
                     _wvm.SelectedRackNetId = 0;
-                }                
+                }
                 _wvm.SelectedRack = RackLocation;
+            }
+            else if (curTile.Type == 171)
+            {
+                Vector2Int32 XmasLocation = _wvm.CurrentWorld.GetXmas(e.Location.X, e.Location.Y);
+                _wvm.SelectedXmasStar = _wvm.CurrentWorld.Tiles[XmasLocation.X, XmasLocation.Y].V & 7;
+                _wvm.SelectedXmasGarland = (_wvm.CurrentWorld.Tiles[XmasLocation.X, XmasLocation.Y].V >> 3) & 7;
+                _wvm.SelectedXmasBulb = (_wvm.CurrentWorld.Tiles[XmasLocation.X, XmasLocation.Y].V >> 6) & 0xf;
+                _wvm.SelectedXmasLight = (_wvm.CurrentWorld.Tiles[XmasLocation.X, XmasLocation.Y].V >> 10) & 0xf;
+                _wvm.SelectedXmas = XmasLocation;
             }
         }
     }

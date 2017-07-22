@@ -8,7 +8,6 @@ using TEdit.Geometry.Primitives;
 using GalaSoft.MvvmLight.Command;
 using Microsoft.Win32;
 using TEditXNA.Terraria;
-using TEditXNA.Terraria.Objects;
 using TEditXna.Editor;
 using TEditXna.Editor.Clipboard;
 using TEditXna.Editor.Plugins;
@@ -33,6 +32,7 @@ namespace TEditXna.ViewModel
         private ICommand _saveChestCommand;
         private ICommand _saveSignCommand;
         private ICommand _saveMannCommand;
+        private ICommand _saveXmasCommand;
         private ICommand _saveTileEntityCommand;
         private ICommand _saveRackCommand;
         private ICommand _npcRemoveCommand;
@@ -61,7 +61,7 @@ namespace TEditXna.ViewModel
         private ICommand _requestScrollCommand;
 
         private ICommand _npcAddCommand;
-         
+
 
         public ICommand NpcAddCommand
         {
@@ -78,16 +78,16 @@ namespace TEditXna.ViewModel
                     var spawn = new Vector2Int32(CurrentWorld.SpawnX, CurrentWorld.SpawnY);
                     CurrentWorld.NPCs.Add(new NPC{Home = spawn, IsHomeless = true, DisplayName = name, Name = name, Position= new Vector2(spawn.X * 16, spawn.Y * 16), SpriteId = npcId});
                     Points.Add(name);
-                    MessageBox.Show(string.Format("{0} added to spawn.", name), "NPC Added");
+                    MessageBox.Show($"{name} added to spawn.", "NPC Added");
                 }
                 else
                 {
-                    MessageBox.Show(string.Format("{0} is already on the map.", name), "NPC Exists");
+                    MessageBox.Show($"{name} is already on the map.", "NPC Exists");
                 }
             }
             else
             {
-                MessageBox.Show(string.Format("Choose an NPC. NPC {0} not found.", npcId), "NPC Error");
+                MessageBox.Show($"Choose an NPC. NPC {npcId} not found.", "NPC Error");
             }
         }
 
@@ -128,6 +128,11 @@ namespace TEditXna.ViewModel
             get { return _saveMannCommand ?? (_saveMannCommand = new RelayCommand<bool>(SaveMannequin)); }
         }
 
+        public ICommand SaveXmasCommand
+        {
+            get { return _saveXmasCommand ?? (_saveXmasCommand = new RelayCommand<bool>(SaveXmasTree)); }
+        }
+
         public ICommand SaveTileEntityCommand
         {
             get { return _saveTileEntityCommand ?? (_saveTileEntityCommand = new RelayCommand<bool>(SaveTileEntity)); }
@@ -143,7 +148,7 @@ namespace TEditXna.ViewModel
                     if (worldFrame != null)
                     {
                         int index = CurrentWorld.TileEntities.IndexOf(worldFrame);
-                        CurrentWorld.TileEntities[index] = SelectedItemFrame.CopyFrame();
+                        CurrentWorld.TileEntities[index] = SelectedItemFrame.Copy();
                     }
                 }
             }
@@ -163,6 +168,25 @@ namespace TEditXna.ViewModel
                     CurrentWorld.Tiles[SelectedMannequin.X, SelectedMannequin.Y].U = (short)((CurrentWorld.Tiles[SelectedMannequin.X, SelectedMannequin.Y].U % 100) + (100 * SelectedMannHead));
                     CurrentWorld.Tiles[SelectedMannequin.X, SelectedMannequin.Y + 1].U = (short)((CurrentWorld.Tiles[SelectedMannequin.X, SelectedMannequin.Y + 1].U % 100) + (100 * SelectedMannBody));
                     CurrentWorld.Tiles[SelectedMannequin.X, SelectedMannequin.Y + 2].U = (short)((CurrentWorld.Tiles[SelectedMannequin.X, SelectedMannequin.Y + 2].U % 100) + (100 * SelectedMannLegs));
+                }
+            }
+            else
+            {
+                SelectedSpecialTile = 0;
+            }
+        }
+
+        private void SaveXmasTree(bool save)
+        {
+            if (save)
+            {
+                if (SelectedXmas != null)
+                {
+                    int tree = SelectedXmasStar;
+                    tree += (SelectedXmasGarland << 3);
+                    tree += (SelectedXmasBulb << 6);
+                    tree += (SelectedXmasLight << 10);
+                    CurrentWorld.Tiles[SelectedXmas.X, SelectedXmas.Y].V = (short)tree;
                 }
             }
             else
@@ -411,7 +435,7 @@ namespace TEditXna.ViewModel
                 {
                     MessageBox.Show(ex.Message, "Error Saving Schematic");
                 }
-                
+
             }
         }
 

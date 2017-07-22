@@ -3,22 +3,20 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Net;
+using System.Net.Http;
 using System.Reflection;
-using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Timers;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Command;
 using TEdit.MvvmLight.Threading;
 using TEdit.Geometry.Primitives;
 using TEdit.Utility;
-using Microsoft.Win32;
 using TEditXna.Editor;
 using TEditXna.Editor.Clipboard;
 using TEditXna.Editor.Plugins;
@@ -29,7 +27,12 @@ using TEditXna.Render;
 using TEditXNA.Terraria;
 using TEditXNA.Terraria.Objects;
 using TEditXna.View.Popups;
+using Application = System.Windows.Application;
 using DispatcherHelper = GalaSoft.MvvmLight.Threading.DispatcherHelper;
+using MessageBox = System.Windows.MessageBox;
+using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
+using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
+using Timer = System.Timers.Timer;
 
 namespace TEditXna.ViewModel
 {
@@ -65,6 +68,11 @@ namespace TEditXna.ViewModel
         private TileEntity _selectedItemFrame;
         private Vector2Int32 _selectedMannequin;
         private Vector2Int32 _selectedRack;
+        private Vector2Int32 _selectedXmas;
+        private int _selectedXmasStar;
+        private int _selectedXmasGarland;
+        private int _selectedXmasBulb;
+        private int _selectedXmasLight;
         private byte _selectedRackPrefix;
         private int _selectedRackNetId;
         private int _selectedMannHead;
@@ -108,7 +116,7 @@ namespace TEditXna.ViewModel
             if (IsInDesignModeStatic)
                 return;
 
-            CheckUpdates = Properties.Settings.Default.CheckUpdates;
+            CheckUpdates = Settings.Default.CheckUpdates;
 
             if (CheckUpdates)
                 CheckVersion();
@@ -129,8 +137,8 @@ namespace TEditXna.ViewModel
                 if (string.IsNullOrWhiteSpace(_spriteFilter)) return true;
 
                 var sprite = (Sprite)o;
-                
-                string [] _spriteFilterSplit = _spriteFilter.Split('/');
+
+                string[] _spriteFilterSplit = _spriteFilter.Split('/');
                 foreach (string _spriteWord in _spriteFilterSplit)
                 {
                     if (sprite.TileName == _spriteWord) return true;
@@ -215,7 +223,7 @@ namespace TEditXna.ViewModel
                     System.Windows.Clipboard.SetText(url);
                 }
             }
-            catch { } 
+            catch { }
         }
 
 
@@ -264,6 +272,41 @@ namespace TEditXna.ViewModel
         {
             get { return _selectedRackNetId; }
             set { Set("SelectedRackNetId", ref _selectedRackNetId, value); }
+        }
+
+        public Vector2Int32 SelectedXmas
+        {
+            get { return _selectedXmas; }
+            set
+            {
+                Set("SelectedXmas", ref _selectedXmas, value);
+                SelectedTabIndex = 1;
+                SelectedSpecialTile = 6;
+            }
+        }
+
+        public int SelectedXmasStar
+        {
+            get { return _selectedXmasStar; }
+            set { Set("SelectedXmasStar", ref _selectedXmasStar, value); }
+        }
+
+        public int SelectedXmasGarland
+        {
+            get { return _selectedXmasGarland; }
+            set { Set("SelectedXmasGarland", ref _selectedXmasGarland, value); }
+        }
+
+        public int SelectedXmasBulb
+        {
+            get { return _selectedXmasBulb; }
+            set { Set("SelectedXmasBulb", ref _selectedXmasBulb, value); }
+        }
+
+        public int SelectedXmasLight
+        {
+            get { return _selectedXmasLight; }
+            set { Set("SelectedXmasLight", ref _selectedXmasLight, value); }
         }
 
         public Sign SelectedSign
@@ -588,85 +631,83 @@ namespace TEditXna.ViewModel
             Assembly asm = Assembly.GetExecutingAssembly();
             FileVersionInfo fvi = FileVersionInfo.GetVersionInfo(asm.Location);
 
-            WindowTitle = string.Format("TEdit v{0}.{1}.{2}.{3} {4}",
-                fvi.ProductMajorPart, fvi.ProductMinorPart, fvi.FileBuildPart, fvi.FilePrivatePart,
-                Path.GetFileName(_currentFile));
+            WindowTitle =
+                $"TEdit v{fvi.ProductMajorPart}.{fvi.ProductMinorPart}.{fvi.FileBuildPart}.{fvi.FilePrivatePart} {Path.GetFileName(_currentFile)}";
         }
 
-        public void CheckVersion(bool auto = true)
+        public async void CheckVersion(bool auto = true)
         {
-            Task.Factory.StartNew<bool?>(() =>
+            bool isoutofdate = false;
+
+            const string versionRegex = @"""tag_name"":\s?""(?<version>[0-9\.]*)""";
+            try
+            {
+                using (var client = new HttpClient())
+                {
+                    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/4.0");
+                    string githubReleases = await client.GetStringAsync("https://api.github.com/repos/TEdit/Terraria-map-Editor/releases");
+                    var versions = Regex.Match(githubReleases, versionRegex);
+
+                    isoutofdate = versions.Success && IsVersionNewerThanApplicationVersion(versions?.Groups?[1].Value);
+
+                    // ignore revision, build should be enough
+                    // if ((revis != -1) && (revis > App.Version.ProductPrivatePart)) return true;
+                }
+            }
+            catch (Exception)
+            {
+                MessageBox.Show("Unable to check version.", "Update Check Failed");
+            }
+
+
+            if (isoutofdate && MessageBox.Show("You are using an outdated version of TEdit. Do you wish to download the update?", "Update?", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
                 try
                 {
-                    using (var Client = new WebClient())
-                    {
-                        byte[] dl = Client.DownloadData("http://www.binaryconstruct.com/downloads/teditversion.txt");
-
-                        string vers = Encoding.Unicode.GetString(dl);
-                        string[] verstrimmed = vers.Split('v');
-
-                        if (verstrimmed.Length != 2) return null;
-
-                        string[] split = verstrimmed[1].Split('.');
-
-                        if (split.Length < 3) return null; // SBLogic -- accept revision part if present
-
-                        int major;
-                        int minor;
-                        int build;
-                        int revis = -1;
-
-                        if (!int.TryParse(split[0], out major)) return null;
-                        if (!int.TryParse(split[1], out minor)) return null;
-                        if (!int.TryParse(split[2], out build)) return null;
-                        if ((split.Length == 4) && (split[3].Length > 0) && (!int.TryParse(split[3], out revis))) return null;
-
-                        if (major > App.Version.ProductMajorPart) return true;
-                        if (minor > App.Version.ProductMinorPart) return true;
-                        if (build > App.Version.ProductBuildPart) return true;
-                        if ((revis != -1) && (revis > App.Version.ProductPrivatePart)) return true;
-                    }
+                    Process.Start("http://www.binaryconstruct.com/downloads/");
                 }
-                catch (Exception)
-                {
-                    return null;
-                }
-                return false;
-            }).ContinueWith(t =>
+                catch { }
+
+            }
+            else if (!auto)
             {
-                bool? isoutofdate = t.Result;
+                MessageBox.Show("TEdit is up to date.", "Update");
+            }
 
-                if (isoutofdate == null)
-                {
-                    MessageBox.Show("Unable to check version.", "Update Check Failed");
-                }
-                else if (isoutofdate == true)
-                {
-                    if (MessageBox.Show("You are using an outdated version of TEdit. Do you wish to download the update?", "Update?", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
-                    {
-                        try
-                        {
-                            Process.Start("http://www.binaryconstruct.com/downloads/");
-                        }
-                        catch { }
-                        
-                    }
-                }
-                else
-                {
-                    if (!auto)
-                        MessageBox.Show("TEdit is up to date.", "Update");
-                }
+        }
 
-            }, TaskFactoryHelper.UiTaskScheduler);
+        private bool IsVersionNewerThanApplicationVersion(string version)
+        {
+            version = version.TrimStart('v');
+
+            string[] split = version.Split('.');
+
+            if (split.Length < 3) return false; // SBLogic -- accept revision part if present
+
+            int major;
+            int minor;
+            int build;
+            int revis = -1;
+
+            if (!int.TryParse(split[0], out major)) return false;
+            if (!int.TryParse(split[1], out minor)) return false;
+            if (!int.TryParse(split[2], out build)) return false;
+
+            if ((split.Length == 4) && (split[3].Length > 0) && (!int.TryParse(split[3], out revis))) return false;
+
+            if (major > App.Version.ProductMajorPart) return true;
+            if (minor > App.Version.ProductMinorPart) return true;
+            if (build > App.Version.ProductBuildPart) return true;
+            if (revis > App.Version.ProductPrivatePart) return true;
+
+            return false;
         }
 
         private ICommand _analyzeWorldCommand;
         private ICommand _analyzeWorldSaveCommand;
         private ICommand _tallyCountCommand;
         private ICommand _tallyCountSaveCommand;
-         
+
 
         /// <summary>
         /// Relay command to execute AnalyzeWorldSave.
@@ -678,17 +719,17 @@ namespace TEditXna.ViewModel
 
         private void AnalyzeWorldSave()
         {
-            if (this.CurrentWorld == null) return;
+            if (CurrentWorld == null) return;
             var sfd = new SaveFileDialog();
             sfd.DefaultExt = "Text File|*.txt";
             sfd.Filter = "Text Files|*.txt";
-            sfd.FileName = this.CurrentWorld.Title + " Analysis.txt";
+            sfd.FileName = CurrentWorld.Title + " Analysis.txt";
             sfd.Title = "Save world analysis.";
             sfd.OverwritePrompt = true;
             if (sfd.ShowDialog() == true)
             {
-                TEditXNA.Terraria.WorldAnalysis.AnalyzeWorld(this.CurrentWorld, sfd.FileName);
-               
+                TEditXNA.Terraria.WorldAnalysis.AnalyzeWorld(CurrentWorld, sfd.FileName);
+
             }
         }
 
@@ -699,16 +740,16 @@ namespace TEditXna.ViewModel
 
         private void TallyCountSave()
         {
-            if (this.CurrentWorld == null) return;
+            if (CurrentWorld == null) return;
             var sfd = new SaveFileDialog();
             sfd.DefaultExt = "Text File|*.txt";
             sfd.Filter = "Text Files|*.txt";
-            sfd.FileName = this.CurrentWorld.Title + " Tally.txt";
+            sfd.FileName = CurrentWorld.Title + " Tally.txt";
             sfd.Title = "Save world analysis.";
             sfd.OverwritePrompt = true;
             if (sfd.ShowDialog() == true)
             {
-                TEditXNA.Terraria.KillTally.SaveTally(this.CurrentWorld, sfd.FileName);
+                KillTally.SaveTally(CurrentWorld, sfd.FileName);
 
             }
         }
@@ -723,7 +764,7 @@ namespace TEditXna.ViewModel
 
         private void AnalyzeWorld()
         {
-            WorldAnalysis = TEditXNA.Terraria.WorldAnalysis.AnalyzeWorld(this.CurrentWorld);
+            WorldAnalysis = TEditXNA.Terraria.WorldAnalysis.AnalyzeWorld(CurrentWorld);
         }
 
         private string _worldAnalysis;
@@ -744,7 +785,7 @@ namespace TEditXna.ViewModel
 
         private void GetTallyCount()
         {
-            TallyCount = TEditXNA.Terraria.KillTally.LoadTally(this.CurrentWorld);
+            TallyCount = KillTally.LoadTally(CurrentWorld);
         }
 
         private string _tallyCount;
@@ -893,7 +934,8 @@ namespace TEditXna.ViewModel
                         }
                         MinimapImage = RenderMiniMap.Render(CurrentWorld);
                         _loadTimer.Stop();
-                        OnProgressChanged(this, new ProgressChangedEventArgs(0, string.Format("World loaded in {0} seconds.", _loadTimer.Elapsed.TotalSeconds)));
+                        OnProgressChanged(this, new ProgressChangedEventArgs(0,
+                            $"World loaded in {_loadTimer.Elapsed.TotalSeconds} seconds."));
                         _saveTimer.Start();
                     }, TaskFactoryHelper.UiTaskScheduler);
             }
@@ -967,7 +1009,8 @@ namespace TEditXna.ViewModel
                         }
                         MinimapImage = RenderMiniMap.Render(CurrentWorld);
                         _loadTimer.Stop();
-                        OnProgressChanged(this, new ProgressChangedEventArgs(0, string.Format("World loaded in {0} seconds.", _loadTimer.Elapsed.TotalSeconds)));
+                        OnProgressChanged(this, new ProgressChangedEventArgs(0,
+                            $"World loaded in {_loadTimer.Elapsed.TotalSeconds} seconds."));
                         _saveTimer.Start();
                     }
                     _loadTimer.Stop();

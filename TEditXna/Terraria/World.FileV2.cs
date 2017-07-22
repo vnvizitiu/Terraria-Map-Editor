@@ -1,26 +1,18 @@
 ﻿using System.Collections.Generic;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
-using System.Runtime.Remoting.Messaging;
-using System.Windows;
-using System.Xml.Linq;
 using TEdit.Utility;
-using TEditXna.Helper;
-using TEditXNA.Terraria.Objects;
 using TEdit.Geometry.Primitives;
 using Vector2 = TEdit.Geometry.Primitives.Vector2;
 using System;
-using System.Collections.ObjectModel;
 using System.IO;
-using System.Linq;
 
 namespace TEditXNA.Terraria
 {
 
     public partial class World
     {
-        public static uint CompatibleVersion = 177;
-        public static short TileCount = 463;
+        public static uint CompatibleVersion = 192;
+        public static short TileCount = 470;
         public static short SectionCount = 10;
 
         public static bool[] TileFrameImportant;
@@ -35,9 +27,9 @@ namespace TEditXNA.Terraria
                 TileFrameImportant = new bool[TileCount];
                 for (int i = 0; i < TileCount; i++)
                 {
-                    if (World.TileProperties.Count > i)
+                    if (TileProperties.Count > i)
                     {
-                        TileFrameImportant[i] = World.TileProperties[i].IsFramed;
+                        TileFrameImportant[i] = TileProperties[i].IsFramed;
                     }
                 }
             }
@@ -62,6 +54,8 @@ namespace TEditXNA.Terraria
             sectionPointers[6] = SaveTileEntities(world, bw);
             OnProgressChanged(null, new ProgressChangedEventArgs(100, "Save Weighted Pressure Plates..."));
             sectionPointers[7] = SavePressurePlate(world.PressurePlates, bw);
+            OnProgressChanged(null, new ProgressChangedEventArgs(100, "Save Town Manager..."));
+            sectionPointers[8] = SaveTownManager(world.PlayerRooms, bw);
             OnProgressChanged(null, new ProgressChangedEventArgs(100, "Save Footers..."));
             SaveFooter(world, bw);
             UpdateSectionPointers(sectionPointers, bw);
@@ -316,7 +310,7 @@ namespace TEditXNA.Terraria
             foreach (NPC npc in npcs)
             {
                 bw.Write(true);
-                bw.Write(npc.Name);
+                bw.Write(npc.SpriteId);
                 bw.Write(npc.DisplayName);
                 bw.Write(npc.Position.X);
                 bw.Write(npc.Position.Y);
@@ -329,12 +323,24 @@ namespace TEditXNA.Terraria
             return (int)bw.BaseStream.Position;
         }
 
+        public static int SaveTownManager(IList<TownManager> rooms, BinaryWriter bw)
+        {
+            bw.Write(rooms.Count);
+            foreach (TownManager room in rooms)
+            {
+                bw.Write(room.NpcId);
+                bw.Write(room.Home.X);
+                bw.Write(room.Home.Y);
+            }
+            return (int)bw.BaseStream.Position;
+        }
+
         public static int SaveMobs(IEnumerable<NPC> mobs, BinaryWriter bw)
         {
             foreach (NPC mob in mobs)
             {
                 bw.Write(true);
-                bw.Write(mob.Name);
+                bw.Write(mob.SpriteId);
                 bw.Write(mob.Position.X);
                 bw.Write(mob.Position.Y);
             }
@@ -401,6 +407,9 @@ namespace TEditXNA.Terraria
         public static int SaveHeaderFlags(World world, BinaryWriter bw)
         {
             bw.Write(world.Title);
+            bw.Write(world.Seed);
+            bw.Write(world.WorldGenVersion);
+            bw.Write(world.Guid.ToByteArray());
             bw.Write(world.WorldId);
             bw.Write((int)world.LeftWorld);
             bw.Write((int)world.RightWorld);
@@ -530,6 +539,15 @@ namespace TEditXNA.Terraria
                 bw.Write(partier);
             }
 
+            bw.Write(world.SandStormHappening);
+            bw.Write(world.SandStormTimeLeft);
+            bw.Write(world.SandStormSeverity);
+            bw.Write(world.SandStormIntendedSeverity);
+            bw.Write(world.SavedBartender);
+            bw.Write(world.DownedDD2InvasionT1);
+            bw.Write(world.DownedDD2InvasionT2);
+            bw.Write(world.DownedDD2InvasionT3);
+
             if (world.UnknownData != null && world.UnknownData.Length > 0)
                 bw.Write(world.UnknownData);
 
@@ -650,6 +668,12 @@ namespace TEditXNA.Terraria
                 if (b.BaseStream.Position != sectionPointers[7])
                     throw new FileFormatException("Unexpected Position: Invalid Weighted Pressure Plate Section");
 			}
+      if(w.Version >= 189)
+      {
+        LoadTownManager(b, w);
+                if (b.BaseStream.Position != sectionPointers[8])
+                    throw new FileFormatException("Unexpected Position: Invalid Town Manager Section");
+      }
 
             OnProgressChanged(null, new ProgressChangedEventArgs(100, "Verifying File..."));
             LoadFooter(b, w);
@@ -677,7 +701,8 @@ namespace TEditXNA.Terraria
                         y++;
 
                         if (y > maxY)
-                            throw new FileFormatException(string.Format("Invalid Tile Data: RLE Compression outside of bounds [{0},{1}]", x, y));
+                            throw new FileFormatException(
+                                $"Invalid Tile Data: RLE Compression outside of bounds [{x},{y}]");
 
                         tiles[x, y] = (Tile)tile.Clone();
                         rle--;
@@ -805,7 +830,7 @@ namespace TEditXNA.Terraria
 
                 // grab bits[4, 5, 6] and shift 4 places to 0,1,2. This byte is our brick style
                 byte brickStyle = (byte)((header2 & 112) >> 4);
-                if (brickStyle != 0 && World.TileProperties.Count > tile.Type && World.TileProperties[tile.Type].IsSolid)
+                if (brickStyle != 0 && TileProperties.Count > tile.Type && TileProperties[tile.Type].IsSolid)
                 {
                     tile.BrickStyle = (BrickStyle)brickStyle;
                 }
@@ -939,14 +964,23 @@ namespace TEditXNA.Terraria
             for (bool i = r.ReadBoolean(); i; i = r.ReadBoolean())
             {
                 NPC npc = new NPC();
-                npc.Name = r.ReadString();
+                if (w.Version >= 190)
+                {
+                    npc.SpriteId = r.ReadInt32();
+                    if (NpcNames.ContainsKey(npc.SpriteId))
+                        npc.Name = NpcNames[npc.SpriteId];
+                }
+                else
+                {
+                    npc.Name = r.ReadString();
+                    if (NpcIds.ContainsKey(npc.Name))
+                        npc.SpriteId = NpcIds[npc.Name];
+                }
                 npc.DisplayName = r.ReadString();
                 npc.Position = new Vector2(r.ReadSingle(), r.ReadSingle());
                 npc.IsHomeless = r.ReadBoolean();
                 npc.Home = new Vector2Int32(r.ReadInt32(), r.ReadInt32());
 
-                if (NpcIds.ContainsKey(npc.Name))
-                    npc.SpriteId = NpcIds[npc.Name];
 
                 w.NPCs.Add(npc);
                 totalNpcs++;
@@ -960,15 +994,32 @@ namespace TEditXNA.Terraria
             while (flag)
             {
                 NPC npc = new NPC();
-                npc.Name = r.ReadString();
+                if (w.Version >= 190)
+                {
+                    npc.SpriteId = r.ReadInt32();
+                }
+                else
+                {
+                    npc.Name = r.ReadString();
+                    if (NpcIds.ContainsKey(npc.Name))
+                        npc.SpriteId = NpcIds[npc.Name];
+                }
                 npc.Position = new Vector2(r.ReadSingle(), r.ReadSingle());
-
-                if (NpcIds.ContainsKey(npc.Name))
-                    npc.SpriteId = NpcIds[npc.Name];
-
                 w.Mobs.Add(npc);
                 totalMobs++;
                 flag = r.ReadBoolean();
+            }
+        }
+
+        public static void LoadTownManager(BinaryReader r, World w)
+        {
+            int totalRooms = r.ReadInt32();
+            for (int i = 0; i < totalRooms; i++)
+            {
+                TownManager room = new TownManager();
+                room.NpcId = r.ReadInt32();
+                room.Home = new Vector2Int32(r.ReadInt32(), r.ReadInt32());
+                w.PlayerRooms.Add(room);
             }
         }
 
@@ -1029,6 +1080,22 @@ namespace TEditXNA.Terraria
         public static void LoadHeaderFlags(BinaryReader r, World w, int expectedPosition)
         {
             w.Title = r.ReadString();
+            if (w.Version >= 179)
+            {
+                if (w.Version == 179)
+                    w.Seed = r.ReadInt32().ToString();
+                else
+                    w.Seed = r.ReadString();
+                w.WorldGenVersion = r.ReadUInt64();
+            }
+            else
+                w.Seed = "";
+            if (w.Version >= 181)
+            {
+                w.Guid = new Guid(r.ReadBytes(16));
+            }
+            else
+                w.Guid = Guid.NewGuid();
             w.WorldId = r.ReadInt32();
             w.LeftWorld = (float)r.ReadInt32();
             w.RightWorld = (float)r.ReadInt32();
@@ -1107,7 +1174,7 @@ namespace TEditXNA.Terraria
 
             w.ShadowOrbSmashed = r.ReadBoolean();
             w.SpawnMeteor = r.ReadBoolean();
-            w.ShadowOrbCount = r.ReadByte();
+            w.ShadowOrbCount = (int)r.ReadByte();
             w.AltarCount = r.ReadInt32();
             w.HardMode = r.ReadBoolean();
             w.InvasionDelay = r.ReadInt32();
@@ -1204,7 +1271,20 @@ namespace TEditXNA.Terraria
                     w.PartyingNPCs.Add(r.ReadInt32());
                 }
             }
-
+            if (w.Version >= 174)
+            {
+                w.SandStormHappening = r.ReadBoolean();
+                w.SandStormTimeLeft = r.ReadInt32();
+                w.SandStormSeverity = r.ReadSingle();
+                w.SandStormIntendedSeverity = r.ReadSingle();
+            }
+            if (w.Version >= 178)
+            {
+                w.SavedBartender = r.ReadBoolean();
+                w.DownedDD2InvasionT1 = r.ReadBoolean();
+                w.DownedDD2InvasionT2 = r.ReadBoolean();
+                w.DownedDD2InvasionT3 = r.ReadBoolean();
+            }
 
             // a little future proofing, read any "unknown" flags from the end of the list and save them. We will write these back after we write our "known" flags.
             if (r.BaseStream.Position < expectedPosition)

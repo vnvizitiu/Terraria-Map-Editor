@@ -2,6 +2,7 @@
 using System.IO;
 using System.Windows.Forms;
 using Microsoft.Win32;
+using System.Diagnostics;
 
 namespace TEditXna
 {
@@ -19,6 +20,13 @@ namespace TEditXna
             string path = Properties.Settings.Default.TerrariaPath;
             int? steamUserId = TEditXNA.Terraria.World.SteamUserId;
 
+            // if hard coded in settings.xml try that location first
+            if (!string.IsNullOrWhiteSpace(TEditXNA.Terraria.World.AltC))
+            {
+                if (Directory.Exists(TEditXNA.Terraria.World.AltC))
+                    path = TEditXNA.Terraria.World.AltC;
+            }
+
             // if the folder is missing, reset.
             if (!Directory.Exists(path))
             {
@@ -30,7 +38,7 @@ namespace TEditXna
             // SBLogic - attempt to find GOG version
             if (string.IsNullOrWhiteSpace(path))
             {
-                using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\GOG.com\Games\1207665503\"))
+                using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\GOG.com\Games\1207665503\"))
                 {
                     if (key != null)
                         path = Path.Combine((string)key.GetValue("PATH"), "Content");
@@ -41,7 +49,7 @@ namespace TEditXna
             if (string.IsNullOrWhiteSpace(path))
             {
                 // try with dionadar's fix
-                using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 105600"))
+                using (RegistryKey key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 105600"))
                 {
                     if (key != null)
                         path = Path.Combine((string)key.GetValue("InstallLocation"), "Content");
@@ -51,7 +59,7 @@ namespace TEditXna
             // if that fails, try steam path
             if (string.IsNullOrWhiteSpace(path))
             {
-                using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\\Valve\\Steam"))
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\\Valve\\Steam"))
                 {
                     if (key != null)
                         path = key.GetValue("SteamPath") as string;
@@ -76,7 +84,7 @@ namespace TEditXna
                 while (!DirectoryHasContentFolder(tempPath) && retry)
                 {
                     if (MessageBox.Show(
-                        string.Format("Directory does not appear to contain Content.\r\nPress retry to pick a new folder or cancel to use \r\n{0}\r\n as your terraria path.", path),
+                            $"Directory does not appear to contain Content.\r\nPress retry to pick a new folder or cancel to use \r\n{path}\r\n as your terraria path.",
                         "Terraria Content not Found",
                         MessageBoxButtons.RetryCancel, MessageBoxIcon.Error) == DialogResult.Retry)
                     {
@@ -91,16 +99,10 @@ namespace TEditXna
                 Properties.Settings.Default.Save();
             }
 
-            if (!Directory.Exists(path))
-            {
-                path = TEditXNA.Terraria.World.AltC;
-            }
-
             if (!string.IsNullOrWhiteSpace(path) && path.IndexOf("Content", StringComparison.OrdinalIgnoreCase) < 0)
             {
                 path = Path.Combine(path, "Content");
             }
-
 
             path = Path.GetFullPath(path);
             PathToContent = path;
@@ -115,7 +117,7 @@ namespace TEditXna
             //  Are we editing Steam Cloud worlds?
             if (steamUserId != null)
             {
-                using (Microsoft.Win32.RegistryKey key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(@"Software\\Valve\\Steam"))
+                using (RegistryKey key = Registry.CurrentUser.OpenSubKey(@"Software\\Valve\\Steam"))
                 {
                     if (key != null)
                     {
@@ -141,7 +143,7 @@ namespace TEditXna
                     }
                 }
             }
-            
+
             return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), @"My Games\Terraria\Worlds");
         }
 
@@ -214,6 +216,18 @@ namespace TEditXna
         public static bool VerifyTerraria()
         {
             return Directory.Exists(PathToContent);
+        }
+
+        public static string GetTerrariaVersion()
+        {
+            string version = null;
+            try
+            {
+                string terrariaExePath = Directory.GetParent(PathToContent).FullName + "\\Terraria.exe";
+                version = FileVersionInfo.GetVersionInfo(terrariaExePath).FileVersion;
+            }
+            catch { /*no message*/}
+            return version;
         }
 
     }

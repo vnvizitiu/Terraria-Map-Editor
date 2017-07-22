@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
@@ -7,8 +6,6 @@ using System.Windows;
 using TEdit.Geometry.Primitives;
 using GalaSoft.MvvmLight;
 using GalaSoft.MvvmLight.Threading;
-using TEdit.Utility;
-using TEditXna.Helper;
 using TEditXNA.Terraria.Objects;
 
 namespace TEditXNA.Terraria
@@ -43,6 +40,8 @@ namespace TEditXNA.Terraria
             Title = title;
             Random r = seed <= 0 ? new Random((int)DateTime.Now.Ticks) : new Random(seed);
             WorldId = r.Next(int.MaxValue);
+            Guid = Guid.NewGuid();
+            Seed = "";
             _npcs.Clear();
             _signs.Clear();
             _chests.Clear();
@@ -58,10 +57,9 @@ namespace TEditXNA.Terraria
             }
             catch (ArgumentOutOfRangeException err)
             {
-                string msg = string.Format("There is a problem in your world.\r\n" +
-                                           "{0}\r\nThis world will not open in Terraria\r\n" +
-                                           "Would you like to save anyways??\r\n"
-                                           , err.ParamName);
+                string msg = "There is a problem in your world.\r\n" +
+                             $"{err.ParamName}\r\nThis world will not open in Terraria\r\n" +
+                             "Would you like to save anyways??\r\n";
                 if (MessageBox.Show(msg, "World Error", MessageBoxButton.YesNo, MessageBoxImage.Error) !=
                     MessageBoxResult.Yes)
                     return;
@@ -134,13 +132,12 @@ namespace TEditXNA.Terraria
             {
 
                 string msg =
-                    string.Format("There was an error reading the world file. This is usually caused by a corrupt save file or a world version newer than supported.\r\n\r\n" +
-                                  "TEdit v{0}\r\n" +
-                                  "TEdit Max World: {1}    Current World: {2}\r\n\r\n" +
-                                  "Do you wish to force it to load anyway?\r\n\r\n" +
-                                  "WARNING: This may have unexpected results including corrupt world files and program crashes.\r\n\r\n" +
-                                   "The error is :\r\n{3}\r\n\r\n{4}\r\n"
-                    , TEditXna.App.Version.FileVersion, World.CompatibleVersion, curVersion, err.Message, err);
+                    "There was an error reading the world file. This is usually caused by a corrupt save file or a world version newer than supported.\r\n\r\n" +
+                    $"TEdit v{TEditXna.App.Version.FileVersion}\r\n" +
+                    $"TEdit Max World: {CompatibleVersion}    Current World: {curVersion}\r\n\r\n" +
+                    "Do you wish to force it to load anyway?\r\n\r\n" +
+                    "WARNING: This may have unexpected results including corrupt world files and program crashes.\r\n\r\n" +
+                    $"The error is :\r\n{err.Message}\r\n\r\n{err}\r\n";
                 if (MessageBox.Show(msg, "World File Error", MessageBoxButton.YesNo, MessageBoxImage.Error) !=
                     MessageBoxResult.Yes)
                     return null;
@@ -170,17 +167,20 @@ namespace TEditXNA.Terraria
 
         public Chest GetChestAtTile(int x, int y)
         {
-            return Chests.FirstOrDefault(c => (c.X == x || c.X == x - 1) && (c.Y == y || c.Y == y - 1));
+            Vector2Int32 anchor = GetAnchor(x,y);
+            return Chests.FirstOrDefault(c => (c.X == anchor.X) && (c.Y == anchor.Y));
         }
 
         public Sign GetSignAtTile(int x, int y)
         {
-            return Signs.FirstOrDefault(c => (c.X == x || c.X == x - 1) && (c.Y == y || c.Y == y - 1));
+            Vector2Int32 anchor = GetAnchor(x,y);
+            return Signs.FirstOrDefault(c => (c.X == anchor.X) && (c.Y == anchor.Y));
         }
 
         public TileEntity GetTileEntityAtTile(int x, int y)
         {
-        	return TileEntities.FirstOrDefault(c => (c.PosX == x || c.PosX == x - 1) && (c.PosY == y || c.PosY == y - 1));
+            Vector2Int32 anchor = GetAnchor(x,y);
+            return TileEntities.FirstOrDefault(c => (c.PosX == anchor.X) && (c.PosY == anchor.Y));
         }
 
         public Vector2Int32 GetMannequin(int x, int y)
@@ -206,24 +206,30 @@ namespace TEditXNA.Terraria
             return new Vector2Int32(x, y);
         }
 
-        public Vector2Int32 GetChestAnchor(int x, int y)
+        public Vector2Int32 GetXmas(int x, int y)
         {
             Tile tile = Tiles[x, y];
-
-            int xShift = tile.U % 36 / 18;
-            int yShift = tile.V % 36 / 18;
-
-            return new Vector2Int32(x - xShift, y - yShift);
+            if (tile.U < 10)
+            {
+                x -= tile.U;
+                y -= tile.V;
+            }
+            return new Vector2Int32(x, y);
         }
 
-        public Vector2Int32 GetSignAnchor(int x, int y)
+        // find upper left corner of sprites
+        public Vector2Int32 GetAnchor(int x, int y)
         {
             Tile tile = Tiles[x, y];
-
-            int xShift = tile.U % 36 / 18;
-            int yShift = tile.V % 36 / 18;
-
-            return new Vector2Int32(x - xShift, y - yShift);
+            TileProperty tileprop = TileProperties[tile.Type];
+            if (tileprop.IsFramed && (tileprop.FrameSize.X > 1 || tileprop.FrameSize.Y > 1))
+            {
+                int xShift = tile.U % ((tileprop.TextureGrid.X + 2) * tileprop.FrameSize.X) / (tileprop.TextureGrid.X + 2);
+                int yShift = tile.V % ((tileprop.TextureGrid.Y + 2) * tileprop.FrameSize.Y) / (tileprop.TextureGrid.Y + 2);
+                return new Vector2Int32(x - xShift, y - yShift);
+            }
+            else
+                return new Vector2Int32(x, y);
         }
 
         public void Validate()
@@ -240,38 +246,8 @@ namespace TEditXNA.Terraria
                     if (curTile.Type == (int)TileType.IceByRod)
                         curTile.IsActive = false;
 
-                    // TODO: Let Validate handle these
-                    //validate chest entry exists
-                    if (Tile.IsChest(curTile.Type))
-                    {
-                        if (GetChestAtTile(x, y) == null)
-                        {
-                            Chests.Add(new Chest(x, y));
-                        }
-                    }
-                    //validate sign entry exists
-                    else if (Tile.IsSign(curTile.Type))
-                    {
-                        if (GetSignAtTile(x, y) == null)
-                        {
-                            Signs.Add(new Sign(x, y, string.Empty));
-                        }
-                    }
-                    //validate logic sensors
-                    else if (curTile.Type == 423)
-                    {
-                    	if (GetTileEntityAtTile(x, y) == null)
-                    	{
-                    		TileEntity TE = new TileEntity();
-                    		TE.Type = 2;
-                    		TE.PosX = (short)x;
-                    		TE.PosY = (short)y;
-                    		TE.On = false;
-                    		TE.LogicCheck = (byte)(curTile.V / 18 + 1);
-                    		TE.Id = TileEntities.Count;
-                    		TileEntities.Add(TE);
-                    	}
-                    }
+                    ValSpecial(x, y);
+
                 }
             }
 
@@ -316,14 +292,72 @@ namespace TEditXNA.Terraria
                     if (removed) break;
                 }
             }
+
+            foreach (TileEntity tileEntity in TileEntities.ToArray())
+            {
+                int x = tileEntity.PosX;
+                int y = tileEntity.PosY;
+                if (!Tiles[x, y].IsActive || !Tile.IsTileEntity(Tiles[x, y].Type))
+                    TileEntities.Remove(tileEntity);
+            }
+
             OnProgressChanged(this,
                     new ProgressChangedEventArgs(0, "Validating Complete..."));
             if (Chests.Count > 1000)
-                throw new ArgumentOutOfRangeException(string.Format("Chest Count is {0} which is greater than 1000",Chests.Count));
+                throw new ArgumentOutOfRangeException($"Chest Count is {Chests.Count} which is greater than 1000");
             if (Signs.Count > 1000)
-                throw new ArgumentOutOfRangeException(string.Format("Sign Count is {0} which is greater than 1000",Signs.Count));
+                throw new ArgumentOutOfRangeException($"Sign Count is {Signs.Count} which is greater than 1000");
         }
-
+        public void ValSpecial(int x, int y)
+        {
+            Tile curTile = Tiles[x, y];
+            //validate chest entry exists
+            if (Tile.IsChest(curTile.Type))
+            {
+                if (GetChestAtTile(x, y) == null)
+                {
+                    Chests.Add(new Chest(x, y));
+                }
+            }
+            //validate sign entry exists
+            else if (Tile.IsSign(curTile.Type))
+            {
+                if (GetSignAtTile(x, y) == null)
+                {
+                    Signs.Add(new Sign(x, y, string.Empty));
+                }
+            }
+            //validate TileEntity
+            else if (Tile.IsTileEntity(curTile.Type))
+            {
+                if (GetTileEntityAtTile(x, y) == null)
+                {
+                    TileEntity TE = new TileEntity();
+                    TE.PosX = (short)x;
+                    TE.PosY = (short)y;
+                    TE.Id = TileEntities.Count;
+                    if (curTile.Type == (int)TileType.Dummy)
+                    {
+                        TE.Type = 0;
+                        TE.Npc = -1;
+                    }
+                    else if (curTile.Type == (int)TileType.ItemFrame)
+                    {
+                        TE.Type = 1;
+                        TE.NetId = 0;
+                        TE.Prefix = 0;
+                        TE.StackSize = 0;
+                    }
+                    else
+                    {
+                        TE.Type = 2;
+                        TE.On = false;
+                        TE.LogicCheck = (byte)(curTile.V / 18 + 1);
+                    }
+                    TileEntities.Add(TE);
+                }
+            }
+        }
         private void FixChand()
         {
             for (int x = 5; x < TilesWide - 5; x++)
